@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import emailjs from "@emailjs/browser";
 import { Redis } from "@upstash/redis";
+import PricingPage from './PricingPage';
 
 const ACCENT = "#00FF87";
 const BG = "#0A0A0F";
@@ -69,7 +70,7 @@ async function insertToSnowflake(niche, visitorName, hoursSaved, savings, topWin
         warehouse: "COMPUTE_WH"
       })
     });
-  } catch { /* silent — don't block app if Snowflake fails */ }
+  } catch { /* silent */ }
 }
 
 // ── Analytics helpers ────────────────────────────────────────
@@ -203,7 +204,6 @@ function AnalyticsDashboard({ onBack }) {
               ))}
             </div>
 
-            {/* Snowflake badge */}
             <div style={{ background: "#1a2744", border: "1px solid #29B5E844", borderRadius: 12, padding: "14px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 20 }}>❄️</span>
               <div>
@@ -335,24 +335,26 @@ const LoadingDots = () => (
 
 // ── Main App ─────────────────────────────────────────────────
 export default function WorkflowMapper() {
-  const [authed, setAuthed]       = useState(false);
-  const [isAdmin, setIsAdmin]     = useState(false);
-  const [showDash, setShowDash]   = useState(false);
-  const [visitor, setVisitor]     = useState("");
-  const [niche, setNiche]         = useState("");
-  const [workflows, setWorkflows] = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [error, setError]         = useState("");
-  const [visible, setVisible]     = useState(false);
-  const [summary, setSummary]     = useState(null);
-  const [emailAddr, setEmailAddr] = useState("");
-  const [sending, setSending]     = useState(false);
+  const [authed, setAuthed]         = useState(false);
+  const [isAdmin, setIsAdmin]       = useState(false);
+  const [showDash, setShowDash]     = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
+  const [visitor, setVisitor]       = useState("");
+  const [niche, setNiche]           = useState("");
+  const [workflows, setWorkflows]   = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [exporting, setExporting]   = useState(false);
+  const [error, setError]           = useState("");
+  const [visible, setVisible]       = useState(false);
+  const [summary, setSummary]       = useState(null);
+  const [emailAddr, setEmailAddr]   = useState("");
+  const [sending, setSending]       = useState(false);
   const [emailStatus, setEmailStatus] = useState("");
   const reportRef = useRef(null);
 
   if (!authed) return <LoginGate onSuccess={(name, admin) => { setVisitor(name); setIsAdmin(admin); setAuthed(true); }} />;
   if (showDash) return <AnalyticsDashboard onBack={() => setShowDash(false)} />;
+  if (showPricing) return <PricingPage onBack={() => setShowPricing(false)} />;
 
   const analyze = async () => {
     if (!niche.trim()) return;
@@ -375,7 +377,6 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
       const parsed = JSON.parse(match[0]);
       setSummary(parsed.summary); setWorkflows(parsed.workflows);
       setTimeout(() => setVisible(true), 50);
-      // Track in both Upstash and Snowflake
       await Promise.all([
         trackSearch(niche, parsed.summary.totalHoursSaved, parsed.summary.totalMonthlySavings),
         insertToSnowflake(niche, visitor, parsed.summary.totalHoursSaved, parsed.summary.totalMonthlySavings, parsed.summary.topWin)
@@ -429,14 +430,24 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
       `}</style>
 
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
+
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 40, position: "relative" }}>
-          {isAdmin && (
-            <button onClick={() => setShowDash(true)}
-              style={{ position: "absolute", right: 0, top: 0, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", color: ACCENT, fontSize: 12, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-              📊 Analytics
+
+          {/* Top right buttons */}
+          <div style={{ position: "absolute", right: 0, top: 0, display: "flex", gap: 8 }}>
+            {isAdmin && (
+              <button onClick={() => setShowDash(true)}
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", color: ACCENT, fontSize: 12, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                📊 Analytics
+              </button>
+            )}
+            <button onClick={() => setShowPricing(true)}
+              style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 14px", color: "#FF6B9D", fontSize: 12, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+              💰 Pricing
             </button>
-          )}
+          </div>
+
           <img src={logo} alt="Assyrian AI Logo" style={{ width: 96, height: 96, borderRadius: "50%", objectFit: "cover", border: "2px solid #FFD70055", boxShadow: "0 0 24px #FFD70022", marginBottom: 16 }} />
           <h1 style={{ fontSize: "clamp(26px, 5vw, 40px)", fontWeight: 800, margin: "0 0 6px", background: "linear-gradient(135deg, #E2E8F0 0%, #00FF87 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Assyrian AI Automation</h1>
           <p style={{ color: MUTED, fontSize: 15, margin: "0 0 10px" }}>
@@ -504,10 +515,14 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
         {/* Action buttons */}
         {workflows && (
           <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ textAlign: "center" }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
               <button className="pdf-btn" onClick={exportPDF} disabled={exporting}
-                style={{ background: exporting?"#1a1a2a":"#8B8BFF", color: exporting?MUTED:"#fff", border: "none", borderRadius: 10, padding: "14px 32px", fontWeight: 700, fontSize: 15, cursor: exporting?"not-allowed":"pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {exporting ? "Exporting…" : "⬇ Download PDF Report"}
+                style={{ background: exporting?"#1a1a2a":"#8B8BFF", color: exporting?MUTED:"#fff", border: "none", borderRadius: 10, padding: "14px 28px", fontWeight: 700, fontSize: 15, cursor: exporting?"not-allowed":"pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {exporting ? "Exporting…" : "⬇ Download PDF"}
+              </button>
+              <button onClick={() => setShowPricing(true)}
+                style={{ background: "#FF6B9D22", border: "1px solid #FF6B9D44", color: "#FF6B9D", borderRadius: 10, padding: "14px 28px", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                💰 View Pricing
               </button>
             </div>
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px" }}>
