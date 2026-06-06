@@ -19,10 +19,58 @@ const EJS_KEY            = import.meta.env.VITE_EJS_KEY;
 const ACCESS_PASSWORD    = import.meta.env.VITE_PASSWORD;
 const ADMIN_PASSWORD     = "admin_" + import.meta.env.VITE_PASSWORD;
 
+const SF_ACCOUNT  = import.meta.env.VITE_SNOWFLAKE_ACCOUNT;
+const SF_USER     = import.meta.env.VITE_SNOWFLAKE_USERNAME;
+const SF_PASSWORD = import.meta.env.VITE_SNOWFLAKE_PASSWORD;
+
 const redis = new Redis({
   url: import.meta.env.VITE_KV_REST_API_URL,
   token: import.meta.env.VITE_KV_REST_API_TOKEN,
 });
+
+// ── Snowflake helpers ────────────────────────────────────────
+async function getSnowflakeToken() {
+  const res = await fetch(`https://${SF_ACCOUNT}.snowflakecomputing.com/session/v1/login-request?requestId=1&request_guid=1`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({
+      data: {
+        CLIENT_APP_ID: "JavaScript",
+        CLIENT_APP_VERSION: "1.0",
+        SVN_REVISION: "1",
+        ACCOUNT_NAME: SF_ACCOUNT,
+        LOGIN_NAME: SF_USER,
+        PASSWORD: SF_PASSWORD,
+      }
+    })
+  });
+  const data = await res.json();
+  return data?.data?.token;
+}
+
+async function insertToSnowflake(niche, visitorName, hoursSaved, savings, topWin) {
+  try {
+    const token = await getSnowflakeToken();
+    if (!token) return;
+    const sql = `INSERT INTO ASSYRIAN_AI.AUTOMATION.WORKFLOW_SEARCHES (NICHE, VISITOR_NAME, HOURS_SAVED, MONTHLY_SAVINGS, TOP_WIN) VALUES ('${niche.replace(/'/g,"\\'")}', '${visitorName.replace(/'/g,"\\'")}', ${hoursSaved}, ${savings}, '${topWin.replace(/'/g,"\\'")}')`;
+    await fetch(`https://${SF_ACCOUNT}.snowflakecomputing.com/api/v2/statements`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Snowflake Token="${token}"`,
+        "X-Snowflake-Authorization-Token-Type": "OAUTH"
+      },
+      body: JSON.stringify({
+        statement: sql,
+        timeout: 60,
+        database: "ASSYRIAN_AI",
+        schema: "AUTOMATION",
+        warehouse: "COMPUTE_WH"
+      })
+    });
+  } catch { /* silent — don't block app if Snowflake fails */ }
+}
 
 // ── Analytics helpers ────────────────────────────────────────
 async function trackSearch(niche, hoursSaved, savings) {
@@ -34,7 +82,7 @@ async function trackSearch(niche, hoursSaved, savings) {
     await redis.lpush("recent_searches", JSON.stringify({
       niche, hoursSaved, savings, time: new Date().toISOString()
     }));
-    await redis.ltrim("recent_searches", 0, 49); // keep last 50
+    await redis.ltrim("recent_searches", 0, 49);
   } catch { /* silent */ }
 }
 
@@ -112,7 +160,7 @@ function LoginGate({ onSuccess }) {
 
 // ── Analytics Dashboard ──────────────────────────────────────
 function AnalyticsDashboard({ onBack }) {
-  const [data, setData]     = useState(null);
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -121,9 +169,8 @@ function AnalyticsDashboard({ onBack }) {
 
   const topNiches = [];
   if (data?.niches) {
-    for (let i = 0; i < data.niches.length; i += 2) {
+    for (let i = 0; i < data.niches.length; i += 2)
       topNiches.push({ name: data.niches[i], count: data.niches[i+1] });
-    }
   }
   const maxCount = topNiches[0]?.count || 1;
 
@@ -131,13 +178,11 @@ function AnalyticsDashboard({ onBack }) {
     <div style={{ minHeight: "100vh", background: BG, color: TEXT, fontFamily: "'Plus Jakarta Sans', sans-serif", padding: "32px 16px" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap'); *{box-sizing:border-box;}`}</style>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
-
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
           <button onClick={onBack} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 16px", color: MUTED, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>← Back</button>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, background: "linear-gradient(135deg, #E2E8F0 0%, #00FF87 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Analytics Dashboard</h1>
-            <p style={{ color: MUTED, fontSize: 13, margin: 0 }}>Live usage stats for Assyrian AI Automation</p>
+            <p style={{ color: MUTED, fontSize: 13, margin: 0 }}>Live usage stats · Upstash + ❄️ Snowflake</p>
           </div>
         </div>
 
@@ -145,7 +190,6 @@ function AnalyticsDashboard({ onBack }) {
 
         {data && (
           <>
-            {/* Stats row */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 24 }}>
               {[
                 { label: "TOTAL SEARCHES", value: data.searches, color: ACCENT },
@@ -159,7 +203,15 @@ function AnalyticsDashboard({ onBack }) {
               ))}
             </div>
 
-            {/* Top niches */}
+            {/* Snowflake badge */}
+            <div style={{ background: "#1a2744", border: "1px solid #29B5E844", borderRadius: 12, padding: "14px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 20 }}>❄️</span>
+              <div>
+                <div style={{ fontSize: 13, color: "#29B5E8", fontWeight: 700 }}>Snowflake Connected</div>
+                <div style={{ fontSize: 12, color: MUTED }}>Every search is saved to ASSYRIAN_AI.AUTOMATION.WORKFLOW_SEARCHES</div>
+              </div>
+            </div>
+
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px", marginBottom: 24 }}>
               <div style={{ fontSize: 11, color: MUTED, fontFamily: "'JetBrains Mono', monospace", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.08em" }}>🔥 Top Searched Niches</div>
               {topNiches.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>No searches yet.</div>}
@@ -173,7 +225,7 @@ function AnalyticsDashboard({ onBack }) {
                         <span style={{ fontSize: 12, color: ACCENT, fontFamily: "'JetBrains Mono', monospace" }}>{n.count}x</span>
                       </div>
                       <div style={{ height: 6, background: "#1E1E2E", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${(n.count / maxCount) * 100}%`, background: ACCENT, borderRadius: 3 }} />
+                        <div style={{ height: "100%", width: `${(n.count/maxCount)*100}%`, background: ACCENT, borderRadius: 3 }} />
                       </div>
                     </div>
                   </div>
@@ -181,7 +233,6 @@ function AnalyticsDashboard({ onBack }) {
               </div>
             </div>
 
-            {/* Recent searches */}
             <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "20px" }}>
               <div style={{ fontSize: 11, color: MUTED, fontFamily: "'JetBrains Mono', monospace", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.08em" }}>🕐 Recent Searches</div>
               {data.recent.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>No searches yet.</div>}
@@ -324,7 +375,11 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
       const parsed = JSON.parse(match[0]);
       setSummary(parsed.summary); setWorkflows(parsed.workflows);
       setTimeout(() => setVisible(true), 50);
-      await trackSearch(niche, parsed.summary.totalHoursSaved, parsed.summary.totalMonthlySavings);
+      // Track in both Upstash and Snowflake
+      await Promise.all([
+        trackSearch(niche, parsed.summary.totalHoursSaved, parsed.summary.totalMonthlySavings),
+        insertToSnowflake(niche, visitor, parsed.summary.totalHoursSaved, parsed.summary.totalMonthlySavings, parsed.summary.topWin)
+      ]);
     } catch { setError("Failed to analyze workflows. Please try again."); }
     finally { setLoading(false); }
   };
@@ -374,7 +429,6 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
       `}</style>
 
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
-
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 40, position: "relative" }}>
           {isAdmin && (
