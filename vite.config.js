@@ -11,6 +11,7 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
           pdf: ['jspdf', 'html2canvas'],
           email: ['@emailjs/browser'],
+          redis: ['@upstash/redis'],
         }
       }
     }
