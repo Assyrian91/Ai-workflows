@@ -486,6 +486,16 @@ CRITICAL: Return ONLY the raw JSON object. No markdown, no backticks, no explana
         {loading && <LoadingDots />}
         {error && <div style={{ background: "#FF000018", border: "1px solid #FF000044", borderRadius: 10, padding: "14px 18px", color: "#FF6B6B", fontSize: 14, marginBottom: 24 }}>{error}</div>}
 
+        {/* Back to search */}
+        {workflows && (
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={() => { setWorkflows(null); setSummary(null); setNiche(""); setVisible(false); setEmailStatus(""); }}
+              style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 16px", color: MUTED, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              ← New Search
+            </button>
+          </div>
+        )}
+
         {/* Report */}
         {summary && (
           <div ref={reportRef}>
