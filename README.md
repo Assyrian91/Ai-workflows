@@ -1,5 +1,9 @@
 # Assyrian AI Automation — Workflow Mapper
 
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036?style=for-the-badge&logo=groq&logoColor=white)
+
 > Discover the top 5 workflows your business runs manually — and what AI can save you.
 
 ![Assyrian AI](src/logo.jpeg)
@@ -24,8 +28,8 @@ Paste in your business niche (e.g. "dental clinic", "law firm", "e-commerce stor
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/Assyrian91/assyrian-ai-automation.git
-cd assyrian-ai-automation
+git clone https://github.com/Assyrian91/Ai-workflows.git
+cd Ai-workflows
 ```
 
 ### 2. Install dependencies
@@ -61,6 +65,10 @@ Deployed on **Vercel**. To deploy your own:
 | Variable | Description |
 |----------|-------------|
 | `VITE_GROQ_API_KEY` | Your Groq API key from console.groq.com |
+
+## Author
+
+**Khoshaba Odeesho** — [github.com/Assyrian91](https://github.com/Assyrian91)
 
 ## License
 
